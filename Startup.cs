@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using ContosoUniversity.Models;
 using Microsoft.Extensions.Hosting;
 using powerconcern.mqtt.services;
+using MQTTnet.AspNetCore;
 
 namespace RazorTest
 {
@@ -41,6 +42,7 @@ namespace RazorTest
                     options.UseSqlServer(Configuration.GetConnectionString("SchoolContext")));
             
             services.AddSingleton<IHostedService, MQTTService>();
+            
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -62,6 +64,8 @@ namespace RazorTest
             app.UseCookiePolicy();
 
             app.UseMvc();
+            app.UseMqttEndpoint();
+            
         }
     }
 }
