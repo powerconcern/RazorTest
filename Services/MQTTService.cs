@@ -105,16 +105,16 @@ namespace powerconcern.mqtt.services
  */
             while (!stoppingToken.IsCancellationRequested)
             {
-                await Task.Delay(250, stoppingToken);
+                await Task.Delay(1000, stoppingToken);
                 //Logger.LogDebug("Waiting for messages");
                 client.UseApplicationMessageReceivedHandler(e =>
                 {
-                    Console.WriteLine("### RECEIVED APPLICATION MESSAGE ###");
-                    Console.WriteLine($"+ Topic = {e.ApplicationMessage.Topic}");
-                    Console.WriteLine($"+ Payload = {Encoding.UTF8.GetString(e.ApplicationMessage.Payload)}");
-                    Console.WriteLine($"+ QoS = {e.ApplicationMessage.QualityOfServiceLevel}");
-                    Console.WriteLine($"+ Retain = {e.ApplicationMessage.Retain}");
-                    Console.WriteLine();
+                    //Console.WriteLine("### RECEIVED APPLICATION MESSAGE ###");
+                    Console.WriteLine($"+ {e.ApplicationMessage.Topic} \t {Encoding.UTF8.GetString(e.ApplicationMessage.Payload)}");
+                    //Console.WriteLine($"+ Payload = {Encoding.UTF8.GetString(e.ApplicationMessage.Payload)}");
+                    //Console.WriteLine($"+ QoS = {e.ApplicationMessage.QualityOfServiceLevel}");
+                    //Console.WriteLine($"+ Retain = {e.ApplicationMessage.Retain}");
+                    //Console.WriteLine();
 
                     if(client != null) {
                         /*Task.Run(() => client.PublishAsync("hello/world",
