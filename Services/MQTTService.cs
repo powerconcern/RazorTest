@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,6 +19,9 @@ namespace powerconcern.mqtt.services
         public MqttFactory Factory { get; }
 
         public IMqttClient MqttClnt {get; }
+        
+        public IMqttClientOptions options;
+
         //automatically passes the logger factory in to the constructor via dependency injection
         public MQTTService(ILoggerFactory loggerFactory)
         {
@@ -26,13 +30,66 @@ namespace powerconcern.mqtt.services
 
             MqttClnt=Factory.CreateMqttClient();
 
-            
             Logger = loggerFactory?.CreateLogger("MQTTSvc");
             if(Logger == null)
             {
                 throw new ArgumentNullException(nameof(loggerFactory));
             }
             MqttNetGlobalLogger.LogMessagePublished += OnTraceMessagePublished;
+            options = new MqttClientOptionsBuilder()
+            .WithClientId(Guid.NewGuid().ToString())
+            .WithTcpServer("mqtt.symlink.se")
+            .WithCredentials("fredrik:fredrik", "aivUGL6no")
+            .WithCleanSession()
+            .Build();
+
+            //var result = MqttClnt.ConnectAsync(options);
+
+            MqttClnt.UseConnectedHandler(async e =>
+            {
+                Console.WriteLine("### CONNECTED WITH SERVER ###");
+
+                // Subscribe to a topic
+                await MqttClnt.SubscribeAsync(new TopicFilterBuilder().WithTopic("CurrentMeter/#").Build());
+                await MqttClnt.SubscribeAsync(new TopicFilterBuilder().WithTopic("EVCharger/#").Build());
+
+                Console.WriteLine("### SUBSCRIBED ###");
+            });
+
+            MqttClnt.UseApplicationMessageReceivedHandler(e =>
+            {
+                //Console.WriteLine("### RECEIVED APPLICATION MESSAGE ###");
+                
+                string logstr=$"{DateTime.Now} {e.ApplicationMessage.Topic} \t {Encoding.UTF8.GetString(e.ApplicationMessage.Payload)}";
+                //Logger.LogInformation(logstr);
+                Console.WriteLine(logstr);
+                if(e.ApplicationMessage.Topic.Contains("current1d")) {
+                    //Save PNG to file
+                    
+                    Stream s=new FileStream("1d.png",FileMode.Create);
+                    var bw=new BinaryWriter(s);
+                    bw.Write(e.ApplicationMessage.Payload);
+                    //bw.Flush();
+                    bw.Close();
+                }
+                if(e.ApplicationMessage.Topic.Contains("current_l")) {
+                    Logger.LogInformation("Check if current is above limit");
+                    //if(e.ApplicationMessage.Payload)
+                    
+                }
+                //Console.WriteLine($"+ Payload = {Encoding.UTF8.GetString(e.ApplicationMessage.Payload)}");
+                //Console.WriteLine($"+ QoS = {e.ApplicationMessage.QualityOfServiceLevel}");
+                //Console.WriteLine($"+ Retain = {e.ApplicationMessage.Retain}");
+                //Console.WriteLine();
+
+                if(MqttClnt != null) {
+                    /*Task.Run(() => client.PublishAsync("hello/world",
+                                                        "4",
+                                                        MqttQualityOfServiceLevel.AtLeastOnce,
+                                                        true));
+                    */
+                }
+            });
 
             Logger.LogInformation("MQTTService created");
         }
@@ -46,14 +103,6 @@ namespace powerconcern.mqtt.services
         {
             Logger.LogInformation("Background thread started");
             
-            
-
-            var options = new MqttClientOptionsBuilder()
-            .WithClientId(Guid.NewGuid().ToString())
-            .WithTcpServer("mqtt.symlink.se")
-            .WithCredentials("fredrik:fredrik", "aivUGL6no")
-            .WithCleanSession()
-            .Build();
             /*
             var options = new MqttClientOptionsBuilder()
             .WithClientId(Guid.NewGuid().ToString())
@@ -61,22 +110,9 @@ namespace powerconcern.mqtt.services
             .WithCleanSession()
             .Build();
 */
-            stoppingToken.Register(() => Console.WriteLine("Background svc is stopping."));
+            //stoppingToken.Register(() => Console.WriteLine("Background svc is stopping."));
 
             // Connecting
-            var result = MqttClnt.ConnectAsync(options);
-
-            MqttClient client=(MqttClient)MqttClnt;
-            client.UseConnectedHandler(async e =>
-            {
-                Console.WriteLine("### CONNECTED WITH SERVER ###");
-
-                // Subscribe to a topic
-                await client.SubscribeAsync(new TopicFilterBuilder().WithTopic("CurrentMeter/#").Build());
-                await client.SubscribeAsync(new TopicFilterBuilder().WithTopic("EVCharger/#").Build());
-
-                Console.WriteLine("### SUBSCRIBED ###");
-            });
 
             stoppingToken.Register(() =>
             Logger.LogDebug($" MQTTSvc background task is stopping."));
@@ -103,28 +139,28 @@ namespace powerconcern.mqtt.services
             client.publish("EVCharger/set/current", payload=str(int(max_current)), qos=0, retain=False)
             client.publish("EVCharger/set/enable", payload=str(1), qos=0, retain=False)
  */
+            //MqttClient client=(MqttClient)MqttClnt;
+
+            var result = await MqttClnt.ConnectAsync(options);
+            //result = await MqttClnt.ConnectAsync(options);
+            
+/*            async Task Handler1(MqttApplicationMessageReceivedEventArgs e) 
+            { 
+//                await client1.PublishAsync($"reply/{eventArgs.ApplicationMessage.Topic}"); 
+                string logstr=$"{DateTime.Now} {e.ApplicationMessage.Topic} \t {Encoding.UTF8.GetString(e.ApplicationMessage.Payload)}";
+                //Logger.LogInformation(logstr);
+                Console.WriteLine(logstr);
+            } 
+            
+            client.UseApplicationMessageReceivedHandler(Handler1);
             while (!stoppingToken.IsCancellationRequested)
             {
                 await Task.Delay(1000, stoppingToken);
-                //Logger.LogDebug("Waiting for messages");
-                client.UseApplicationMessageReceivedHandler(e =>
-                {
-                    //Console.WriteLine("### RECEIVED APPLICATION MESSAGE ###");
-                    Console.WriteLine($"+ {e.ApplicationMessage.Topic} \t {Encoding.UTF8.GetString(e.ApplicationMessage.Payload)}");
-                    //Console.WriteLine($"+ Payload = {Encoding.UTF8.GetString(e.ApplicationMessage.Payload)}");
-                    //Console.WriteLine($"+ QoS = {e.ApplicationMessage.QualityOfServiceLevel}");
-                    //Console.WriteLine($"+ Retain = {e.ApplicationMessage.Retain}");
-                    //Console.WriteLine();
 
-                    if(client != null) {
-                        /*Task.Run(() => client.PublishAsync("hello/world",
-                                                            "4",
-                                                            MqttQualityOfServiceLevel.AtLeastOnce,
-                                                            true));
-                        */
-                    }
-                });
+                Console.WriteLine("Background svc looping");
+
             }
+*/
 
             Console.WriteLine("Background svc is stopping.");
             
