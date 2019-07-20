@@ -1,4 +1,4 @@
-﻿using ContosoUniversity.Models;                   // SchoolContext
+﻿using PowerConcern.Models;                   // SchoolContext
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;   // CreateScope
@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 using RazorTest;
 using System;
 
-namespace ContosoUniversity
+namespace PowerConcern
 {
     public class Program
     {
@@ -20,7 +20,7 @@ namespace ContosoUniversity
 
                 try
                 {
-                    var context = services.GetRequiredService<SchoolContext>();
+                    var context = services.GetRequiredService<PowerConcernContext>();
                     context.Database.EnsureCreated();
                 }
                 catch (Exception ex)

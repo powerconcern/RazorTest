@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
-using ContosoUniversity.Models;
+using PowerConcern.Models;
 using Microsoft.Extensions.Hosting;
 using powerconcern.mqtt.services;
 using MQTTnet.AspNetCore;
@@ -38,8 +38,8 @@ namespace RazorTest
 
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
 
-            services.AddDbContext<SchoolContext>(options =>
-                    options.UseSqlServer(Configuration.GetConnectionString("SchoolContext")));
+            services.AddDbContext<PowerConcernContext>(options =>
+                    options.UseSqlServer(Configuration.GetConnectionString("PowerConcernContext")));
             
             services.AddSingleton<IHostedService, MQTTService>();
             
