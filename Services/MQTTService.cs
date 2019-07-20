@@ -21,11 +21,14 @@ namespace powerconcern.mqtt.services
         public IMqttClient MqttClnt {get; }
         
         public IMqttClientOptions options;
+        public float[] fMeanCurrent;
+        public float fMaxCurrent=16;
 
         //automatically passes the logger factory in to the constructor via dependency injection
         public MQTTService(ILoggerFactory loggerFactory)
         {
-            
+            fMeanCurrent=new float[4];
+
             Factory=new MqttFactory();
 
             MqttClnt=Factory.CreateMqttClient();
@@ -35,6 +38,7 @@ namespace powerconcern.mqtt.services
             {
                 throw new ArgumentNullException(nameof(loggerFactory));
             }
+
             MqttNetGlobalLogger.LogMessagePublished += OnTraceMessagePublished;
             options = new MqttClientOptionsBuilder()
             .WithClientId(Guid.NewGuid().ToString())
@@ -56,6 +60,22 @@ namespace powerconcern.mqtt.services
                 Console.WriteLine("### SUBSCRIBED ###");
             });
 
+            MqttClnt.UseDisconnectedHandler(async e =>
+            {
+                Console.WriteLine("### DISCONNECTED FROM SERVER ###");
+                await Task.Delay(TimeSpan.FromSeconds(5));
+                if(fMeanCurrent[1]>0) {
+                    try
+                    {
+                        await MqttClnt.ConnectAsync(options);
+                    }
+                    catch
+                    {
+                        Console.WriteLine("### RECONNECTING FAILED ###");
+                    }
+                }
+            });
+
             MqttClnt.UseApplicationMessageReceivedHandler(e =>
             {
                 //Console.WriteLine("### RECEIVED APPLICATION MESSAGE ###");
@@ -73,21 +93,20 @@ namespace powerconcern.mqtt.services
                     bw.Close();
                 }
                 if(e.ApplicationMessage.Topic.Contains("current_l")) {
-                    Logger.LogInformation("Check if current is above limit");
-                    //if(e.ApplicationMessage.Payload)
-                    
-                }
-                //Console.WriteLine($"+ Payload = {Encoding.UTF8.GetString(e.ApplicationMessage.Payload)}");
-                //Console.WriteLine($"+ QoS = {e.ApplicationMessage.QualityOfServiceLevel}");
-                //Console.WriteLine($"+ Retain = {e.ApplicationMessage.Retain}");
-                //Console.WriteLine();
+                    float fCurrent=float.Parse(e.ApplicationMessage.Payload.ToString());
+                    int iPhase=Int16.Parse(e.ApplicationMessage.Topic.Substring(e.ApplicationMessage.Topic.Length-1));
+                    fMeanCurrent[iPhase]=(4 * fMeanCurrent[iPhase]+fCurrent)/5;
+                    Logger.LogInformation($"Phase: {iPhase}; Current: {fCurrent}; Mean Current: {fMeanCurrent[iPhase]}");
 
-                if(MqttClnt != null) {
-                    /*Task.Run(() => client.PublishAsync("hello/world",
-                                                        "4",
-                                                        MqttQualityOfServiceLevel.AtLeastOnce,
-                                                        true));
-                    */
+                    if(fMeanCurrent[iPhase]>fMaxCurrent) {
+                        float fNewChargeCurrent=fMeanCurrent[iPhase]-fMaxCurrent;
+                        string sNewChargeCurrent=fNewChargeCurrent.ToString();
+                        Logger.LogInformation($"Holy Moses, too much power! Adjusting to {sNewChargeCurrent}");
+                        MqttClnt.PublishAsync("TestCharger/set/current",
+                                    sNewChargeCurrent,
+                                    MqttQualityOfServiceLevel.AtLeastOnce,
+                                    false);
+                    }
                 }
             });
 
@@ -102,20 +121,11 @@ namespace powerconcern.mqtt.services
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             Logger.LogInformation("Background thread started");
-            
-            /*
-            var options = new MqttClientOptionsBuilder()
-            .WithClientId(Guid.NewGuid().ToString())
-            .WithTcpServer("192.168.222.20", 1883)
-            .WithCleanSession()
-            .Build();
-*/
-            //stoppingToken.Register(() => Console.WriteLine("Background svc is stopping."));
 
-            // Connecting
+            var result = await MqttClnt.ConnectAsync(options);
+            Logger.LogInformation($"Connection result: {result.ResponseInformation}");
 
-            stoppingToken.Register(() =>
-            Logger.LogDebug($" MQTTSvc background task is stopping."));
+            stoppingToken.Register(() => Logger.LogDebug($" MQTTSvc background task is stopping."));
 
 
 /* Python rules
@@ -141,12 +151,11 @@ namespace powerconcern.mqtt.services
  */
             //MqttClient client=(MqttClient)MqttClnt;
 
-            var result = await MqttClnt.ConnectAsync(options);
             //result = await MqttClnt.ConnectAsync(options);
             
 /*            async Task Handler1(MqttApplicationMessageReceivedEventArgs e) 
             { 
-//                await client1.PublishAsync($"reply/{eventArgs.ApplicationMessage.Topic}"); 
+//                await client1.PublishAsync($"reply/{eventArgs.ApplicationMessage.Topic}");
                 string logstr=$"{DateTime.Now} {e.ApplicationMessage.Topic} \t {Encoding.UTF8.GetString(e.ApplicationMessage.Payload)}";
                 //Logger.LogInformation(logstr);
                 Console.WriteLine(logstr);
